@@ -1,5 +1,13 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:scireclass/endereco.dart';
 import 'package:scireclass/login.dart';
+import 'package:scireclass/toast.dart';
+import 'package:scireclass/user.dart';
+import 'package:scireclass/user_auth/firebase_auth_implementation/firebase_auth_service.dart';
+import 'package:scireclass/user_auth/firebase_auth_implementation/firebase_database_service.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class SignupScreen extends StatefulWidget {
   @override
@@ -7,23 +15,105 @@ class SignupScreen extends StatefulWidget {
 }
 
 class _SignupScreenState extends State<SignupScreen> {
-  String perfil = 'ALUNO'; // Defina o perfil padrão
+  TextEditingController _cepController = TextEditingController();
+
+  final FirebaseAuthService _authService = FirebaseAuthService();
+
+  final FireBaseDatabaseService _databaseService = FireBaseDatabaseService();
+
+  String perfil = 'ALUNO';
   String nome = '';
   String senha = '';
   String email = '';
+
+  bool aceitouTermos = false;
+
   String cep = '';
   String numero = '';
-  bool aceitouTermos = false;
-  bool modalOKVisible = false;
-  bool modalBADVisible = false;
-  bool modalLoadingVisible = false;
-
-  void handleCadastraUsuario() {
-    // Lógica para lidar com o cadastro do usuário
-  }
+  String logradouro = '';
+  String bairro = '';
+  String localidade = '';
+  String uf = '';
 
   void checkCEP() {
-    // Lógica para verificar o CEP
+    String enteredCep = _cepController.text.replaceAll('-', '');
+    if (enteredCep.length == 8) {
+      String url = 'https://viacep.com.br/ws/$enteredCep/json/';
+      http.get(Uri.parse(url)).then((response) {
+        if (response.statusCode == 200) {
+          Map<String, dynamic> data = json.decode(response.body);
+          if (!data.containsKey('erro')) {
+            setState(() {
+              logradouro = data['logradouro'];
+              bairro = data['bairro'];
+              localidade = data['localidade'];
+              uf = data['uf'];
+            });
+          } else {
+            showDialog(
+              context: context,
+              builder: (BuildContext context) {
+                return AlertDialog(
+                  title: Text('CEP Inválido'),
+                  content: Text(
+                      'CEP inválido. Por favor, verifique o CEP inserido.'),
+                  actions: <Widget>[
+                    TextButton(
+                      child: Text('OK'),
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        _cepController.clear();
+                      },
+                    ),
+                  ],
+                );
+              },
+            );
+          }
+        } else {
+          throw Exception('Failed to load data');
+        }
+      }).catchError((error) {
+        print(error);
+        showDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: Text('Erro'),
+              content: Text(
+                  'Ocorreu um erro ao buscar o CEP. Tente novamente mais tarde.'),
+              actions: <Widget>[
+                TextButton(
+                  child: Text('OK'),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                ),
+              ],
+            );
+          },
+        );
+      });
+    } else {
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: Text('CEP Inválido'),
+            content: Text('CEP inválido. Por favor, verifique o CEP inserido.'),
+            actions: <Widget>[
+              TextButton(
+                child: Text('OK'),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _cepController.clear();
+                },
+              ),
+            ],
+          );
+        },
+      );
+    }
   }
 
   @override
@@ -169,12 +259,14 @@ class _SignupScreenState extends State<SignupScreen> {
                     ),
                   ),
                   TextField(
+                    controller: _cepController,
                     keyboardType: TextInputType.phone,
                     onChanged: (value) {
                       setState(() {
                         cep = value;
                       });
                     },
+                    onEditingComplete: checkCEP,
                     style: TextStyle(
                       fontFamily: 'Poppins-Regular',
                     ),
@@ -268,6 +360,39 @@ class _SignupScreenState extends State<SignupScreen> {
         ),
       ),
     );
+  }
+
+  void handleCadastraUsuario() async {
+    UserModel userModel = UserModel(
+      perfil: perfil,
+      nome: nome,
+      senha: senha,
+      email: email,
+      cep: cep,
+      numero: numero,
+    );
+
+    EnderecoModel enderecoModel = EnderecoModel(
+        numero: numero,
+        cep: cep,
+        logradouro: logradouro,
+        bairro: bairro,
+        localidade: localidade,
+        uf: uf);
+
+    bool salvouUser = _databaseService.saveUser(userModel, enderecoModel);
+    if (salvouUser) {
+      User? user = await _authService.signUpWithEmailAndPassword(email, senha);
+      if (user != null) {
+        Navigator.pushReplacement(context,
+            MaterialPageRoute(builder: (context) => const LoginScreen()));
+        showToast(message: "Cadastro realizado com sucesso");
+      } else {
+        showToast(message: "Erro Ao Realizar o cadastro");
+      }
+    } else {
+      showToast(message: "Erro Ao Realizar o cadastro");
+    }
   }
 }
 

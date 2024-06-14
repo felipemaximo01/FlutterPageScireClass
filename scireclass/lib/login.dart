@@ -1,4 +1,9 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:scireclass/cadastro.dart';
+import 'package:scireclass/homepage.dart';
+import 'package:scireclass/toast.dart';
+import 'package:scireclass/user_auth/firebase_auth_implementation/firebase_auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -8,14 +13,10 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  final FirebaseAuthService _authService = FirebaseAuthService();
+
   String email = '';
   String senha = '';
-  bool modalBADVisible = false;
-  bool modalLoadingVisible = false;
-
-  void handleLoginUsuario() {
-    // Lógica para lidar com o login do usuário
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -123,7 +124,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   GestureDetector(
                     onTap: () {
-                      // Lógica para lidar com o cadastro do usuário
+                      Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => SignupScreen()));
                     },
                     child: Text(
                       'Sign up',
@@ -140,6 +144,17 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       ),
     );
+  }
+
+  void handleLoginUsuario() async {
+    User? user = await _authService.singInWithEmailAndPassword(email, senha);
+    if (user != null) {
+      Navigator.pushReplacement(
+          context, MaterialPageRoute(builder: (context) => const HomePage()));
+      showToast(message: "Login Realizado Com Sucesso");
+    } else {
+      showToast(message: "Erro Ao Realizar o Login");
+    }
   }
 }
 
